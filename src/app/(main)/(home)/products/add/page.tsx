@@ -340,6 +340,8 @@ export default function AddProductPage() {
         updateFormData("images", uploadResults);
       }
 
+      // Replace the video upload section in your handleSubmit function with this:
+
       if (formData.videos.length > 0) {
         console.log(
           `Processing ${formData.videos.length} videos for upload...`
@@ -357,12 +359,21 @@ export default function AddProductPage() {
               setUploadStage(
                 `Uploading Video ${index + 1} of ${formData.videos.length}`
               );
+
               const { data: uploadData } = await generateUploadUrl({
                 variables: { productId: createdProduct.id, isImage: false },
               });
 
-              const { url, signature, timestamp, apiKey, publicId, folder } =
-                uploadData.generateUploadUrl;
+              const {
+                url,
+                signature,
+                timestamp,
+                apiKey,
+                publicId,
+                folder,
+                resourceType,
+              } = uploadData.generateUploadUrl;
+
               console.log("Video upload params:", {
                 url,
                 signature,
@@ -370,6 +381,7 @@ export default function AddProductPage() {
                 apiKey,
                 publicId,
                 folder,
+                resourceType,
               });
 
               const uploadFormData = new FormData();
@@ -379,14 +391,17 @@ export default function AddProductPage() {
               uploadFormData.append("api_key", apiKey);
               uploadFormData.append("public_id", publicId);
               uploadFormData.append("folder", folder);
-              uploadFormData.append("resource_type", "video");
 
-              // Log FormData contents (note: FormData logging is limited in browsers)
+              // IMPORTANT: Only append resource_type if it's provided (for videos)
+              if (resourceType) {
+                uploadFormData.append("resource_type", resourceType);
+              }
+
+              // Log FormData contents for debugging
+              console.log("FormData entries for video upload:");
               for (const [key, value] of uploadFormData.entries()) {
                 console.log(
-                  `FormData entry: ${key}=${
-                    typeof value === "string" ? value : "[File]"
-                  }`
+                  `  ${key}: ${typeof value === "string" ? value : "[File]"}`
                 );
               }
 
@@ -422,6 +437,9 @@ export default function AddProductPage() {
                 saveData.saveProductMedia
               );
 
+              completedTasks += 1;
+              setUploadProgress((completedTasks / totalTasks) * 100);
+
               return {
                 ...video,
                 id: saveData.saveProductMedia,
@@ -435,14 +453,6 @@ export default function AddProductPage() {
             }
           }
         );
-
-        // return {
-        // ...video,
-        //   id: saveData.saveProductMedia,
-        //   url: uploadResult.secure_url,
-        //   uploading: false,
-        //   file: undefined,
-        // };
 
         const videoUploadResults = await Promise.all(videoUploadPromises);
         console.log("All video uploads completed:", videoUploadResults);

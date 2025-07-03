@@ -1,8 +1,7 @@
 import { GraphQLContext } from "../context";
-import { requireAuth, requireRole, requireOwnership } from "./auth.helpers";
-import { invalidateCache as clearCache } from "./cache.helpers";
+import { requireAuth, requireOwnership, requireRole } from "./auth.helpers";
 import { cache } from "./cache";
-import { PrismaTransactionClient } from "@prisma/client/runtime/library";
+import { invalidateCache as clearCache } from "./cache.helpers";
 
 // Helper functions for database operations
 const getProductIncludeOptions = () => ({
@@ -23,7 +22,7 @@ const validateProductInput = (input: any) => {
 };
 
 const createProductFeatures = async (
-  tx: PrismaTransactionClient,
+  tx: any,
   productId: string,
   features: any[],
   specifications: any[]
@@ -52,7 +51,7 @@ const createProductFeatures = async (
 };
 
 const createProductImages = async (
-  tx: PrismaTransactionClient,
+  tx: any,
   productId: string,
   images: any[]
 ) => {
@@ -234,10 +233,44 @@ export const productResolvers = {
             );
           }
 
-          // Handle images update
+          // Handle images update - smart update to preserve, add, and remove images
           if (input.images !== undefined) {
-            await tx.productImage.deleteMany({ where: { productId: id } });
-            await createProductImages(tx, id, input.images);
+            const currentImages = await tx.productImage.findMany({
+              where: { productId: id },
+              select: { id: true, url: true }
+            });
+
+            const inputImageUrls = new Set(
+              input.images.filter((img: any) => img.url).map((img: any) => img.url)
+            );
+
+            // Remove images that are no longer in the input
+            const imagesToRemove = currentImages.filter(ci =>
+              !inputImageUrls.has(ci.url)
+            );
+
+            if (imagesToRemove.length > 0) {
+              await tx.productImage.deleteMany({
+                where: { id: { in: imagesToRemove.map(i => i.id) } }
+              });
+            }
+
+            // Add new images
+            const currentImageUrls = new Set(currentImages.map(i => i.url));
+            const newImages = input.images.filter((img: any) =>
+              img.url && !currentImageUrls.has(img.url)
+            );
+
+            if (newImages.length > 0) {
+              await tx.productImage.createMany({
+                data: newImages.map((img: any) => ({
+                  productId: id,
+                  url: img.url,
+                  altText: img.altText,
+                  isPrimary: img.isPrimary || false,
+                })),
+              });
+            }
           }
 
           // Handle videos update - smart update to preserve, add, and remove videos
@@ -246,28 +279,28 @@ export const productResolvers = {
               where: { productId: id },
               select: { id: true, url: true, publicId: true }
             });
-            
+
             const inputVideoUrls = new Set(
               input.video.filter((vid: any) => vid.url).map((vid: any) => vid.url)
             );
-            
+
             // Remove videos that are no longer in the input
-            const videosToRemove = currentVideos.filter(cv => 
+            const videosToRemove = currentVideos.filter(cv =>
               !inputVideoUrls.has(cv.url)
             );
-            
+
             if (videosToRemove.length > 0) {
               await tx.productVideo.deleteMany({
                 where: { id: { in: videosToRemove.map(v => v.id) } }
               });
             }
-            
+
             // Add new videos
             const currentVideoUrls = new Set(currentVideos.map(v => v.url));
-            const newVideos = input.video.filter((vid: any) => 
+            const newVideos = input.video.filter((vid: any) =>
               vid.url && !currentVideoUrls.has(vid.url)
             );
-            
+
             if (newVideos.length > 0) {
               await tx.productVideo.createMany({
                 data: newVideos.map((vid: any) => ({
@@ -277,7 +310,7 @@ export const productResolvers = {
                 })),
               });
             }
-            
+
             console.log(`Video update: Removed ${videosToRemove.length}, Added ${newVideos.length}`);
           }
 

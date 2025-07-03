@@ -4,9 +4,9 @@ import cloudinary from "../utils/cloudinary";
 import { requireAuth, requireProductOwnership } from "./auth.helpers";
 import { invalidateCache } from "./cache.helpers";
 import {
-  CloudinaryConfigError,
-  DatabaseError,
-  ValidationError,
+    CloudinaryConfigError,
+    DatabaseError,
+    ValidationError,
 } from "./errors";
 import { logPerformance } from "./performance";
 
@@ -78,7 +78,7 @@ export const fileUploadResolvers = {
         const publicId = `${folder}/${productId}_${Date.now()}_${Math.random()
           .toString(36)
           .substr(2, 9)}`;
-        const timestamp = Math.round(Date.now() / 1000).toString(); // Ensure timestamp is a string
+        const timestamp = Math.round(Date.now() / 1000).toString();
 
         // Parameters to sign, sorted alphabetically
         const paramsToSign = {
@@ -87,9 +87,10 @@ export const fileUploadResolvers = {
           timestamp,
         };
 
-        if (!isImage) {
-          paramsToSign.resource_type = "video";
-        }
+        // Do NOT add resource_type to paramsToSign for videos
+        // if (!isImage) {
+        //   paramsToSign.resource_type = "video";
+        // }
 
         console.log("Params to sign:", paramsToSign);
         console.log(
@@ -97,19 +98,20 @@ export const fileUploadResolvers = {
           CLOUDINARY_API_SECRET.substring(0, 10)
         );
 
+        // Generate signature using Cloudinary's utility
         const signature = cloudinary.utils.api_sign_request(
           paramsToSign,
           CLOUDINARY_API_SECRET
         );
 
         console.log("Generated signature:", signature);
-        console.log(
-          "String to sign:",
-          Object.entries(paramsToSign)
-            .sort()
-            .map(([key, value]) => `${key}=${value}`)
-            .join("&")
-        );
+
+        // Debug: Show what string is being signed
+        const sortedParams = Object.entries(paramsToSign)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([key, value]) => `${key}=${value}`)
+          .join("&");
+        console.log("String to sign:", sortedParams);
 
         return {
           url: `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`,
@@ -118,6 +120,7 @@ export const fileUploadResolvers = {
           apiKey: CLOUDINARY_API_KEY,
           publicId,
           folder,
+          resourceType: !isImage ? "video" : undefined, // Include resource_type for videos
         };
       } catch (error) {
         console.error("generateUploadUrl error:", error);

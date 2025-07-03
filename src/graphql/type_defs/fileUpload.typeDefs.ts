@@ -19,6 +19,7 @@ export const fileUploadTypeDefs = gql`
     apiKey: String!
     publicId: String!
     folder: String!
+    resourceType: String # Optional field for videos
   }
 
   extend type Mutation {
