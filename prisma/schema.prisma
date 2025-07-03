@@ -1,0 +1,392 @@
+// prisma/schema.prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  SELLER
+  ADMIN
+}
+
+enum AddressType {
+  STORE
+  PERMANENT
+  TEMPORARY
+}
+
+enum ProductStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+model User {
+  id            String            @id @default(uuid())
+  clerkId       String            @unique
+  email         String            @unique
+  role          Role
+  products      Product[]         @relation("SellerProducts")
+  orders        Order[]           @relation("UserOrders")
+  cartItems     CartItem[]        @relation("UserCart")
+  wishlistItems WishlistItem[]    @relation("UserWishlist")
+  reviews       RatingAndReview[] @relation("UserReviews")
+  likes         LikeAndDislike[]  @relation("UserLikes")
+  profile       Profile?          @relation("UserProfile")
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  deletedAt     DateTime?
+
+  @@index([email])
+  @@index([clerkId])
+  @@index([createdAt])
+  @@map("users")
+}
+
+model Profile {
+  id          String       @id @default(uuid())
+  user        User         @relation(name: "UserProfile", fields: [userId], references: [id], onDelete: Cascade)
+  userId      String       @unique
+  firstName   String
+  lastName    String
+  phoneNumber String?
+  addresses   Address[]    @relation("ProfileAddresses")
+  document    Document?    @relation("ProfileDocument")
+  storeDetail StoreDetail? @relation("ProfileStoreDetail")
+  avatar      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("profiles")
+}
+
+model Document {
+  id        String  @id @default(uuid())
+  panNumber String  @unique
+  profile   Profile @relation(name: "ProfileDocument", fields: [profileId], references: [id], onDelete: Cascade)
+  profileId String  @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([panNumber])
+  @@map("documents")
+}
+
+model Address {
+  id           String       @id @default(uuid())
+  province     String
+  addressLabel String?
+  pinCode      String
+  locality     String
+  city         String
+  landMark     String?
+  addressType  AddressType
+  profile      Profile      @relation(name: "ProfileAddresses", fields: [profileId], references: [id], onDelete: Cascade)
+  profileId    String
+  storeDetail  StoreDetail? @relation("StoreAddress")
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([profileId])
+  @@index([city])
+  @@index([pinCode])
+  @@map("addresses")
+}
+
+model StoreDetail {
+  id          String  @id @default(uuid())
+  storeName   String
+  storeType   String
+  description String?
+
+  storeAddress Address @relation(name: "StoreAddress", fields: [addressId], references: [id], onDelete: Cascade)
+  addressId    String  @unique
+
+  profile   Profile? @relation("ProfileStoreDetail", fields: [profileId], references: [id], onDelete: Cascade)
+  profileId String?  @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([storeName])
+  @@map("store_details")
+}
+
+model ProductImage {
+  id        String  @id @default(uuid())
+  url       String
+  altText   String?
+  isPrimary Boolean @default(false)
+
+  product   Product @relation("ProductImages", fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+  @@map("product_images")
+}
+
+model ProductVideo {
+  id        String   @id @default(uuid())
+  url       String
+  publicId  String   @unique
+  product   Product  @relation("ProductVideos", fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+  @@map("videos")
+}
+
+// Separate table for product features
+model ProductFeature {
+  id      String  @id @default(uuid())
+  feature String
+  value   String?
+
+  product   Product @relation("ProductFeatures", fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+  @@map("product_features")
+}
+
+model Product {
+  id            String            @id @default(uuid())
+  name          String
+  description   String?
+  price         Decimal           @db.Decimal(10, 2)
+  sku           String?           @unique
+  stock         Int               @default(0)
+  seller        User              @relation(name: "SellerProducts", fields: [sellerId], references: [id])
+  sellerId      String
+  images        ProductImage[]    @relation("ProductImages")
+  video         ProductVideo[]    @relation("ProductVideos")
+  features      ProductFeature[]  @relation("ProductFeatures")
+  status        ProductStatus     @default(PENDING)
+  discount      Discount?         @relation("ProductDiscount")
+  reviews       RatingAndReview[] @relation("ProductReviews")
+  likes         LikeAndDislike[]  @relation("ProductLikes")
+  cartItems     CartItem[]        @relation("ProductCart")
+  wishlistItems WishlistItem[]    @relation("ProductWishlist")
+  orderItems    OrderItem[]       @relation("ProductOrders")
+  categories    ProductCategory[] @relation("ProductCategories")
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  deletedAt     DateTime?
+
+  @@index([sellerId])
+  @@index([status])
+  @@index([name])
+  @@index([price])
+  @@index([createdAt])
+  @@map("products")
+}
+
+model CartItem {
+  id       String @id @default(uuid())
+  quantity Int    @default(1)
+
+  user   User   @relation(name: "UserCart", fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  product   Product @relation(name: "ProductCart", fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
+  @@map("cart_items")
+}
+
+// Junction table for wishlist items
+model WishlistItem {
+  id String @id @default(uuid())
+
+  user   User   @relation(name: "UserWishlist", fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  product   Product @relation(name: "ProductWishlist", fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
+  @@map("wishlist_items")
+}
+
+// Product categories for better organization
+model Category {
+  id          String            @id @default(uuid())
+  name        String            @unique
+  description String?
+  slug        String            @unique
+  parentId    String?
+  parent      Category?         @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[]        @relation("CategoryHierarchy")
+  products    ProductCategory[] @relation("CategoryProducts")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@index([slug])
+  @@index([parentId])
+  @@map("categories")
+}
+
+// Junction table for product categories
+model ProductCategory {
+  id String @id @default(uuid())
+
+  product   Product @relation(name: "ProductCategories", fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+
+  category   Category @relation(name: "CategoryProducts", fields: [categoryId], references: [id], onDelete: Cascade)
+  categoryId String
+
+  createdAt DateTime @default(now())
+
+  @@unique([productId, categoryId])
+  @@index([productId])
+  @@index([categoryId])
+  @@map("product_categories")
+}
+
+model RatingAndReview {
+  id     String @id @default(uuid())
+  review String
+  rating Int    @db.SmallInt // 1-5 rating
+
+  user   User   @relation(name: "UserReviews", fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  product   Product @relation(name: "ProductReviews", fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+
+  likes LikeAndDislike[] @relation("ReviewLikes")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, productId]) // One review per user per product
+  @@index([productId])
+  @@index([rating])
+  @@index([createdAt])
+  @@map("rating_and_reviews")
+}
+
+model LikeAndDislike {
+  id     String  @id @default(uuid())
+  isLike Boolean
+
+  user   User   @relation(name: "UserLikes", fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  product   Product? @relation(name: "ProductLikes", fields: [productId], references: [id], onDelete: Cascade)
+  productId String?
+
+  review   RatingAndReview? @relation(name: "ReviewLikes", fields: [reviewId], references: [id], onDelete: Cascade)
+  reviewId String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@unique([userId, reviewId])
+  @@index([userId])
+  @@index([productId])
+  @@index([reviewId])
+  @@map("likes_and_dislikes")
+}
+
+model Discount {
+  id        String  @id @default(uuid())
+  product   Product @relation(name: "ProductDiscount", fields: [productId], references: [id], onDelete: Cascade)
+  productId String  @unique
+
+  discountPercent Decimal  @db.Decimal(5, 2) // Better precision for percentages
+  startDate       DateTime
+  endDate         DateTime
+  isActive        Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+  @@index([startDate, endDate])
+  @@index([isActive])
+  @@map("discounts")
+}
+
+model Order {
+  id          String      @id @default(uuid())
+  orderNumber String      @unique // Human-readable order number
+  status      OrderStatus @default(PENDING)
+  totalAmount Decimal     @db.Decimal(10, 2)
+
+  user   User   @relation(name: "UserOrders", fields: [userId], references: [id])
+  userId String
+
+  // Shipping address (denormalized for historical record)
+  shippingAddress Json // Store address as JSON for historical purposes
+
+  items OrderItem[] @relation("OrderItems")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([orderNumber])
+  @@index([status])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id       String  @id @default(uuid())
+  quantity Int
+  price    Decimal @db.Decimal(10, 2) // Price at time of order
+
+  order   Order  @relation(name: "OrderItems", fields: [orderId], references: [id], onDelete: Cascade)
+  orderId String
+
+  product   Product @relation(name: "ProductOrders", fields: [productId], references: [id])
+  productId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
