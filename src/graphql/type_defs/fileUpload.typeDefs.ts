@@ -18,6 +18,7 @@ export const fileUploadTypeDefs = gql`
     timestamp: String!
     apiKey: String!
     publicId: String!
+    folder: String!
   }
 
   extend type Mutation {

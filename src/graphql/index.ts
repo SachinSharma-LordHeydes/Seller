@@ -1,6 +1,6 @@
 import { mergeResolvers, mergeTypeDefs } from "@graphql-tools/merge";
 import gql from "graphql-tag";
-import { FileUploadResolver } from "./resolvers/fileUpload.resolvers";
+import { fileUploadResolvers } from "./resolvers/fileUpload.js.resolvers";
 import { productResolvers } from "./resolvers/product.resolvers";
 import { fileUploadTypeDefs } from "./type_defs/fileUpload.typeDefs";
 import { productTypeDefs } from "./type_defs/product.typeDefrs";
@@ -18,5 +18,5 @@ export const typeDefs = mergeTypeDefs([
 
 export const resolvers = mergeResolvers([
   productResolvers,
-  // FileUploadResolver will be handled by type-graphql
+  fileUploadResolvers,
 ]);

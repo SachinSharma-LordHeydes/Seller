@@ -67,6 +67,7 @@ export const GENERATE_UPLOAD_URL = gql`
       timestamp
       apiKey
       publicId
+      folder
     }
   }
 `;
@@ -257,10 +258,17 @@ export default function AddProductPage() {
                 },
               });
 
-              const { url, signature, timestamp, apiKey, publicId } =
+              const { url, signature, timestamp, apiKey, publicId, folder } =
                 uploadData.generateUploadUrl;
 
               console.log("url-->", url);
+              console.log("Upload params:", {
+                signature,
+                timestamp,
+                apiKey,
+                publicId,
+                folder,
+              });
 
               // Create form data for Cloudinary upload
               const uploadFormData = new FormData(); // Renamed from formData
@@ -269,6 +277,7 @@ export default function AddProductPage() {
               uploadFormData.append("timestamp", timestamp);
               uploadFormData.append("api_key", apiKey);
               uploadFormData.append("public_id", publicId);
+              uploadFormData.append("folder", folder);
 
               // Upload to Cloudinary
               const uploadResponse = await fetch(url, {
@@ -345,48 +354,60 @@ export default function AddProductPage() {
               }
 
               console.log(`Uploading video ${index}`);
-              // Generate upload URL for video
               setUploadStage(
                 `Uploading Video ${index + 1} of ${formData.videos.length}`
               );
               const { data: uploadData } = await generateUploadUrl({
-                variables: {
-                  productId: createdProduct.id,
-                  isImage: false,
-                },
+                variables: { productId: createdProduct.id, isImage: false },
               });
 
-              const { url, signature, timestamp, apiKey, publicId } =
+              const { url, signature, timestamp, apiKey, publicId, folder } =
                 uploadData.generateUploadUrl;
+              console.log("Video upload params:", {
+                url,
+                signature,
+                timestamp,
+                apiKey,
+                publicId,
+                folder,
+              });
 
-              // Create form data for Cloudinary upload
-              const uploadFormData = new FormData(); // Renamed from formData
+              const uploadFormData = new FormData();
               uploadFormData.append("file", video.file);
               uploadFormData.append("signature", signature);
               uploadFormData.append("timestamp", timestamp);
               uploadFormData.append("api_key", apiKey);
               uploadFormData.append("public_id", publicId);
+              uploadFormData.append("folder", folder);
               uploadFormData.append("resource_type", "video");
 
-              // Upload to Cloudinary
+              // Log FormData contents (note: FormData logging is limited in browsers)
+              for (const [key, value] of uploadFormData.entries()) {
+                console.log(
+                  `FormData entry: ${key}=${
+                    typeof value === "string" ? value : "[File]"
+                  }`
+                );
+              }
+
               const uploadResponse = await fetch(url, {
                 method: "POST",
                 body: uploadFormData,
               });
 
+              const responseText = await uploadResponse.text();
+              console.log(`Video upload response [${index}]:`, responseText);
+
               if (!uploadResponse.ok) {
-                throw new Error(
-                  `Video upload failed: ${uploadResponse.statusText}`
-                );
+                throw new Error(`Video upload failed: ${responseText}`);
               }
 
-              const uploadResult = await uploadResponse.json();
+              const uploadResult = JSON.parse(responseText);
               console.log(
                 `Video ${index} uploaded to Cloudinary:`,
                 uploadResult.secure_url
               );
 
-              // Save video reference in database
               const { data: saveData } = await saveProductMedia({
                 variables: {
                   productId: createdProduct.id,
@@ -410,14 +431,18 @@ export default function AddProductPage() {
               };
             } catch (error: any) {
               console.error(`Failed to upload video ${index}:`, error);
-              return {
-                ...video,
-                error: error.message,
-                uploading: false,
-              };
+              return { ...video, error: error.message, uploading: false };
             }
           }
         );
+
+        // return {
+        // ...video,
+        //   id: saveData.saveProductMedia,
+        //   url: uploadResult.secure_url,
+        //   uploading: false,
+        //   file: undefined,
+        // };
 
         const videoUploadResults = await Promise.all(videoUploadPromises);
         console.log("All video uploads completed:", videoUploadResults);
